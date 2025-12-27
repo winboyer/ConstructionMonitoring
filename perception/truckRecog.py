@@ -1,0 +1,124 @@
+import re
+from datetime import datetime
+from pathlib import Path
+from typing import Tuple, Optional
+import cv2
+from paddleocrRecog import DocumentRecognizer
+from ultralytics import YOLO
+
+
+class TruckRecognizer:
+    def __init__(self, model_path):
+        """
+        Initialize the security client.
+        """
+        self.det_model = YOLO(model_path)
+        self.ocr_model = DocumentRecognizer()
+        
+    def detect_truck(self, frame):
+        """
+        Detect safety gear in frame (placeholder for actual detection model).
+        
+        Returns:
+            Tuple of (has_helmet, has_reflective_vest)
+        """
+        
+        # results = self.det_model.predict(source=frame, conf=0.5)
+        results = self.det_model.predict(source=frame)
+
+        # print(f"result boxes: {result.boxes}")
+        # print(f"result boxes: {result.boxes.conf, result.boxes.cls, result.boxes.xywh, result.boxes.xyxy}")
+        xyxy = results[0].boxes.xyxy.cpu().numpy()
+        xywh = results[0].boxes.xywh.cpu().numpy()
+        conf = results[0].boxes.conf.cpu().numpy()
+        cls = results[0].boxes.cls.cpu().numpy()                
+
+        class_names = self.det_model.names
+        # frame_copy = frame.copy()
+        truck_number = None
+        timestamp = None
+
+        province_abbr = r"[京津沪渝冀豫云辽黑湘皖鲁新苏浙赣鄂桂甘晋蒙陕吉闽贵粤青藏川宁琼台使领]{1}" #省份简称汉字
+        suffix = r"[A-Z0-9]{5}" #车牌号后面5位，可字母或数字（排除I/O）
+        # plate_pattern = f"^{province_abbr}[A-Z]{1}{suffix}$"
+        plate_pattern = province_abbr + r"[A-Z]{1}" + suffix
+        plate_pattern_pre = province_abbr + r"[A-Z]{1}"
+
+        image_save_folder = Path("./detected_trucks")
+        if not image_save_folder.exists():
+            image_save_folder.mkdir(parents=True, exist_ok=True)
+
+        for i, c in enumerate(cls):
+            # print(f"Class: {class_names[int(c)]}")
+            if class_names[int(c)] == 'truck':
+                print("Detected a truck!")
+                # cv2.rectangle(frame_copy, (int(xyxy[i][0]), int(xyxy[i][1])), (int(xyxy[i][2]), int(xyxy[i][3])), (0, 255, 0), 2)
+                # print(f"xyxy: {xyxy}, xywh: {xywh}, conf: {conf}, cls: {cls}")
+                crop_img = frame[int(xyxy[i][1]):int(xyxy[i][3]), int(xyxy[i][0]):int(xyxy[i][2])]
+                ocr_info = self.ocr_model.extract_info(crop_img)
+                for ocr in ocr_info.get('result', []):
+                    # print(f"OCR Result: {ocr}, length: {len(ocr)}")
+                    if len(ocr) < 7:
+                        continue
+                    # Simple regex to match license plate patterns (customize as needed)
+                    # print(ocr[:2], ocr[-5:])
+                    if re.match(plate_pattern_pre, ocr[:2]) and re.match(suffix, ocr[-5:]):
+                        truck_number = ocr[:2] + ocr[-5:]
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        cv2.imwrite(f"{image_save_folder}/image_{timestamp}.jpg", frame)
+                        break
+        print(f"Detected truck number: {truck_number}")
+        return truck_number, frame, timestamp
+
+    def recognize_trucknum_from_rtsp(self, video_stream: str) -> Tuple[Optional[str], Optional[any], Optional[str]]:
+        """
+        
+        Args:
+        
+        Returns:
+        """
+        try:            
+            cap = cv2.VideoCapture(video_stream)
+            if not cap.isOpened():
+                print(f"Failed to open video source: {video_stream}")
+                cap.release()
+                return None, None, None
+            
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    print(f"Failed to read frame")
+                    continue
+                truck_number, ret_frame, timestamp = self.detect_truck(frame)
+                if truck_number:
+                    cap.release()
+                    return truck_number, ret_frame, timestamp                    
+        except Exception as e:
+            cap.release()
+            return False, f"Error: {str(e)}", None
+
+if __name__ == "__main__":
+    model_path = "/Users/jinyfeng/tools/object-det/yolo11n.pt"  # Update with your model directory
+    recognizer = TruckRecognizer(model_path)
+    
+    # file_path = "/Users/jinyfeng/个人文档/zhongjian_works/AI课题/施工进度估计/隧道施工项目/data_test/视频识别/渣土车识别/MVIMG_20251127_104611.jpg"  # Update with your image path
+    # file_path = "/Users/jinyfeng/个人文档/zhongjian_works/AI课题/施工进度估计/隧道施工项目/data_test/视频识别/渣土车识别/MVIMG_20251127_104630.jpg"  # Update with your image path
+    # file_path = "/Users/jinyfeng/个人文档/zhongjian_works/AI课题/施工进度估计/隧道施工项目/data_test/视频识别/渣土车识别/2025-11-28_110120_403.jpg"  # Update with your image path
+    file_path = "/Users/jinyfeng/个人文档/zhongjian_works/AI课题/施工进度估计/隧道施工项目/data_test/视频识别/渣土车识别/2025-11-28_110908_704.mp4"
+    # Determine if the file is an image or video
+    if file_path.lower().endswith(('.mp4', '.avi', '.mov', '.mkv', '.flv', '.wmv')):
+        # Process as video
+        truck_number, ret_frame, timestamp = recognizer.recognize_trucknum_from_rtsp(file_path, interval=2)
+        # print(f"Results: {truck_number}")
+
+    elif file_path.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp', '.tiff')):
+        # Process as image
+        image_path = file_path
+    
+        frame = cv2.imread(image_path)
+        truck_number, ret_frame, timestamp = recognizer.detect_truck(frame)
+        # print(f"Results: {results}")
+        # cv2.imshow("Result", ret_frame)
+        # cv2.waitKey(0)
+        # cv2.destroyAllWindows()
+

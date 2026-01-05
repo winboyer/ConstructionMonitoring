@@ -1,4 +1,3 @@
-import requests
 import json
 from datetime import datetime
 from pathlib import Path
@@ -7,7 +6,8 @@ import cv2
 from PIL import Image, ImageDraw, ImageFont
 import os, yaml, time
 import onnxruntime
-from util import getDeteBBox_v2,getCropImg,getClsResult
+import sys
+from perception.util import getDeteBBox_v2,getCropImg,getClsResult
 import base64
 onnxruntime.set_default_logger_severity(3)
 textFont = cv2.FONT_HERSHEY_SIMPLEX

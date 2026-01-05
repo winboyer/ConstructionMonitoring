@@ -1,7 +1,7 @@
 import json
 import requests
 import time
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
 import ddddocr
 from flask import Flask, jsonify, request
@@ -37,19 +37,24 @@ def recognize_captcha():
         
         img = Image.open(BytesIO(response_new.content))
         
+        draw_img = img.copy()
+        draw = ImageDraw.Draw(draw_img)
+
         # Use ddddocr v2 for recognition
         start_time = time.time()
         # result = ocr_v1.classification(img)
         result = ocr_v2.classification(img)
         end_time = time.time()
         print(f"recognition result :{result}, Inference time : {end_time - start_time:.2f} seconds")
+        position = (10, 0) # (x, y) coordinates for the top-left corner of the text
+        draw.text(position, result, fill=(0,255,0))
 
         # Save the captcha image with naming convention: result+content_result
-        foldername = 'captchaImgs'
+        foldername = 'captcha_images'
         if not os.path.exists(foldername):
             os.makedirs(foldername)
         img.save(f"{foldername}/{result}_{content_result}.png")
-        
+        draw_img.save(f"{foldername}/{result}_{content_result}_with_text.png")
         return jsonify({
             'status': response.status_code,
             'captcha_id': content_result,

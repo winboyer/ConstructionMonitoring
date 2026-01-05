@@ -3,9 +3,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Tuple, Optional
 import cv2
-from paddleocrRecog import DocumentRecognizer
+import sys
+import os
+import time
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from perception.paddleocrRecog import DocumentRecognizer
 from ultralytics import YOLO
-
 
 class TruckRecognizer:
     def __init__(self, model_path):
@@ -55,6 +58,9 @@ class TruckRecognizer:
                 # cv2.rectangle(frame_copy, (int(xyxy[i][0]), int(xyxy[i][1])), (int(xyxy[i][2]), int(xyxy[i][3])), (0, 255, 0), 2)
                 # print(f"xyxy: {xyxy}, xywh: {xywh}, conf: {conf}, cls: {cls}")
                 crop_img = frame[int(xyxy[i][1]):int(xyxy[i][3]), int(xyxy[i][0]):int(xyxy[i][2])]
+                cv2.imshow("crop_img", crop_img)
+                cv2.waitKey(0)
+                cv2.destroyAllWindows()
                 ocr_info = self.ocr_model.extract_info(crop_img)
                 for ocr in ocr_info.get('result', []):
                     # print(f"OCR Result: {ocr}, length: {len(ocr)}")
@@ -88,27 +94,34 @@ class TruckRecognizer:
                 ret, frame = cap.read()
                 if not ret:
                     print(f"Failed to read frame")
+                    time.sleep(10)
                     continue
                 truck_number, ret_frame, timestamp = self.detect_truck(frame)
                 if truck_number:
                     cap.release()
-                    return truck_number, ret_frame, timestamp                    
+                    return truck_number, ret_frame, timestamp              
+                time.sleep(30)      
         except Exception as e:
             cap.release()
             return False, f"Error: {str(e)}", None
 
 if __name__ == "__main__":
     model_path = "/Users/jinyfeng/tools/object-det/yolo11n.pt"  # Update with your model directory
+    
+    import sys
+    import os
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
     recognizer = TruckRecognizer(model_path)
     
     # file_path = "/Users/jinyfeng/个人文档/zhongjian_works/AI课题/施工进度估计/隧道施工项目/data_test/视频识别/渣土车识别/MVIMG_20251127_104611.jpg"  # Update with your image path
     # file_path = "/Users/jinyfeng/个人文档/zhongjian_works/AI课题/施工进度估计/隧道施工项目/data_test/视频识别/渣土车识别/MVIMG_20251127_104630.jpg"  # Update with your image path
-    # file_path = "/Users/jinyfeng/个人文档/zhongjian_works/AI课题/施工进度估计/隧道施工项目/data_test/视频识别/渣土车识别/2025-11-28_110120_403.jpg"  # Update with your image path
-    file_path = "/Users/jinyfeng/个人文档/zhongjian_works/AI课题/施工进度估计/隧道施工项目/data_test/视频识别/渣土车识别/2025-11-28_110908_704.mp4"
+    file_path = "/Users/jinyfeng/个人文档/zhongjian_works/AI课题/施工进度估计/隧道施工项目/data_test/视频识别/渣土车识别/2025-11-28_110120_403.jpg"  # Update with your image path
+    # file_path = "/Users/jinyfeng/个人文档/zhongjian_works/AI课题/施工进度估计/隧道施工项目/data_test/视频识别/渣土车识别/2025-11-28_110908_704.mp4"
     # Determine if the file is an image or video
     if file_path.lower().endswith(('.mp4', '.avi', '.mov', '.mkv', '.flv', '.wmv')):
         # Process as video
-        truck_number, ret_frame, timestamp = recognizer.recognize_trucknum_from_rtsp(file_path, interval=2)
+        truck_number, ret_frame, timestamp = recognizer.recognize_trucknum_from_rtsp(file_path)
         # print(f"Results: {truck_number}")
 
     elif file_path.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp', '.tiff')):

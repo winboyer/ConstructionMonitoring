@@ -3,16 +3,22 @@ import time
 from paddlex import create_model
 from paddleocr import DocImgOrientationClassification
 
-model = create_model(model_dir='/home/jinyfeng/models/PaddlePaddle/PP-LCNet_x1_0_doc_ori', 
+# model = create_model(model_dir='/home/jinyfeng/models/PaddlePaddle/PP-LCNet_x1_0_doc_ori', 
+#                      model_name="PP-LCNet_x1_0_doc_ori")
+#                     # device='gpu:0')
+model = create_model(model_dir='/Users/jinyfeng/models/PP-LCNet_x1_0_doc_ori_infer', 
                      model_name="PP-LCNet_x1_0_doc_ori")
-                    # device='gpu:0')
 
 # model = DocImgOrientationClassification(model_dir='/home/jinyfeng/models/PaddlePaddle/PP-LCNet_x1_0_doc_ori', 
 #                                         model_name="PP-LCNet_x1_0_doc_ori")
 
 data_path = '/home/jinyfeng/datas/data_test/'
+data_path = '/Users/jinyfeng/个人文档/zhongjian_works/AI课题/施工进度估计/隧道施工项目/data_test/'
+
 # filename = '视频识别/管片识别/微信图片_20251106160954_213_226.jpg'
 filename = '视频识别/管片识别/MVIMG_20251127_093229.jpg'
+filename = '微信图片_20251216111447_251_2632.jpg'
+
 input_path = os.path.join(data_path, filename)
 
 start_time = time.time()

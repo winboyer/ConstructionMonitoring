@@ -1,7 +1,14 @@
 import cv2
 import threading
 import time
+import requests
+import json
 from datetime import datetime
+import sys
+import os
+# Add parent directory to path for imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from utils.image_process import bytes_to_base64, base64_to_bytes
 from perception.crewStaffSecRecog import CrewStaffSecurityRecognizer
 from perception.truckRecog import TruckRecognizer
@@ -20,31 +27,42 @@ class RTSPStreamRecognizer:
         self.running = True
         self.truck_recognizer = TruckRecognizer(truck_model)
     
-    def process_stream(self, stream_id, rtsp_url):
+    def process_stream(self, rtsp_url):
         """Process single RTSP stream"""
         
         # Determine interval based on stream ID
         # 安全帽和反光衣识别
         if 'c16' in rtsp_url:
             interval = 5
-        elif any(cam in rtsp_url for cam in ['c11', 'c13', 'c23', 'c25', 'c26']):
-            interval = self.interval
+        # elif any(cam in rtsp_url for cam in ['c11', 'c13', 'c23', 'c25', 'c26']):
+        #     interval = self.interval
         # c4 渣土车车牌号识别
         elif 'c4' in rtsp_url:
-            interval = 10
-            truck_number, ret_frame, timestamp = self.truck_recognizer.recognize_trucknum_from_rtsp(rtsp_url, interval=interval)
-            ret_frame_b64 = bytes_to_base64(cv2.imencode('.jpg', ret_frame)[1].tobytes())
-
-
+            interval = 300
+            truck_number, ret_frame, timestamp = self.truck_recognizer.recognize_trucknum_from_rtsp(rtsp_url)
+            # ret_frame_b64 = bytes_to_base64(image_bytes)
+            if truck_number:
+                image_bytes = cv2.imencode('.jpg', ret_frame)[1].tobytes()
+                requests.post(
+                    "http://112.124.54.138:5001/api/loadcars/image",
+                    json={
+                        "licenSeplate": truck_number,
+                        "timestamp": timestamp,
+                        "imageFile": image_bytes
+                    }
+                )
+                time.sleep(interval) 
+            else:
+                time.sleep(interval//2)
         else:
             interval = self.interval
                 
     def start(self):
         """Start processing all streams"""
-        for stream_id, rtsp_url in enumerate(self.rtsp_urls, 1):
+        for rtsp_url in self.rtsp_urls:
             thread = threading.Thread(
                 target=self.process_stream,
-                args=(stream_id, rtsp_url),
+                args=(rtsp_url,),
                 daemon=True
             )
             thread.start()
@@ -80,8 +98,7 @@ if __name__ == "__main__":
 	    # "rtsp://admin:zgjz@office@192.168.110.2:554/h264/ch1/main/av_stream"	#盾构机枪机	盾构司机室
 	    
         # "rtsp://admin:123456@192.168.110.118:554/unicast/c1/s0/live"	        #外部枪机	监控室
-	    "rtsp://admin:123456@192.168.110.118:554/unicast/c4/s0/live"	        #外部枪机	工地大门口1
-
+	    "rtsp://admin:123456@192.168.110.127:554/unicast/c4/s0/live"	        #外部枪机	工地大门口1
 	    # "rtsp://admin:123456@192.168.110.118:554/unicast/c10/s0/live"	        #外部球机	砂浆站
 	    # "rtsp://admin:123456@192.168.110.118:554/unicast/c11/s0/live"	        #外部球机	右线概况
 	    # "rtsp://admin:123456@192.168.110.118:554/unicast/c12/s0/live"	        #外部球机	路口围挡
@@ -93,6 +110,6 @@ if __name__ == "__main__":
 	    # "rtsp://admin:123456@192.168.110.118:554/unicast/c25/s0/live"	        #外部球机	左线概况
 	    # "rtsp://admin:123456@192.168.110.118:554/unicast/c26/s0/live"	        #外部球机	右线洞口
     ]
-    
-    recognizer = RTSPStreamRecognizer(rtsp_urls, interval=20)
+    truck_model = "/Users/jinyfeng/tools/object-det/yolo11n.pt"
+    recognizer = RTSPStreamRecognizer(rtsp_urls, truck_model, interval=20)
     recognizer.start()

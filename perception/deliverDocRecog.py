@@ -5,8 +5,8 @@ import re
 
 ocr = PaddleOCR(
     use_doc_orientation_classify=True,
-    use_doc_unwarping=False,
-    use_textline_orientation=False)
+    use_doc_unwarping=True,
+    use_textline_orientation=True)
 
 data_path = '/home/jinyfeng/datas/data_test/'
 data_path = '/Users/jinyfeng/个人文档/zhongjian_works/AI课题/施工进度估计/隧道施工项目/data_test/'
@@ -61,7 +61,17 @@ for idx, text in enumerate(rec_texts):
         print(idx, rec_polys[idx])
         center_x = (rec_polys[idx][0][0] + rec_polys[idx][1][0]+rec_polys[idx][2][0] + rec_polys[idx][3][0]) / 2
         center_y = (rec_polys[idx][0][1] + rec_polys[idx][1][1]+rec_polys[idx][2][1] + rec_polys[idx][3][1]) / 2
-        product_name_list[idx] = product_name_list[idx] + text
+        if center_x < ring_number_coords[idx][0]:
+            product_name_list[idx] = product_name_list[idx] + text
+    elif text.isdigit() and int(text) < 10:
+        center_x = (rec_polys[idx][0][0] + rec_polys[idx][1][0]+rec_polys[idx][2][0] + rec_polys[idx][3][0]) / 2
+        center_y = (rec_polys[idx][0][1] + rec_polys[idx][1][1]+rec_polys[idx][2][1] + rec_polys[idx][3][1]) / 2
+        if center_x > ring_number_coords[idx][0]:
+            print("数量：", text)
+        print('环号补充：', text)
+        print(idx, rec_polys[idx])
+        if ring_number_list:
+            ring_number_list[-1] = ring_number_list[-1] + text
 
 print("施工项目名称：", project_name)
 print("产品名称列表：", product_name_list)

@@ -35,7 +35,8 @@ product_name_list = []
 product_name_coords = []
 ring_number_list = []
 ring_number_coords = []
-
+product_cnt = 0
+product_cnt_list = []
 for idx, text in enumerate(rec_texts):
     if "轨道交通7号线" in text:
         project_name = text
@@ -66,18 +67,19 @@ for idx, text in enumerate(rec_texts):
     elif text.isdigit() and int(text) < 10:
         center_x = (rec_polys[idx][0][0] + rec_polys[idx][1][0]+rec_polys[idx][2][0] + rec_polys[idx][3][0]) / 2
         center_y = (rec_polys[idx][0][1] + rec_polys[idx][1][1]+rec_polys[idx][2][1] + rec_polys[idx][3][1]) / 2
-        if center_x > ring_number_coords[idx][0]:
+        if len(ring_number_list) > 0 and center_x > ring_number_coords[0][0]:
+            if len(product_cnt_list) < 1:
+                product_cnt = int(text)
+            product_cnt_list.append(product_cnt)
             print("数量：", text)
-        print('环号补充：', text)
-        print(idx, rec_polys[idx])
-        if ring_number_list:
-            ring_number_list[-1] = ring_number_list[-1] + text
 
+            
 print("施工项目名称：", project_name)
 print("产品名称列表：", product_name_list)
 print("产品名称坐标列表：", product_name_coords)
 print("环号列表：", ring_number_list)
 print("环号坐标列表：", ring_number_coords)
+print("产品数量列表：", product_cnt_list)
 
 end_time = time.time()
 print(f"Inference time: {end_time - start_time:.2f} seconds")

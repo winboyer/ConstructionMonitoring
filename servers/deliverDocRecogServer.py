@@ -12,7 +12,7 @@ import os
 app = Flask(__name__)
 
 # Global recognizer instance (thread-safe)
-recognizer = DocumentRecognizer()
+recognizer = DocumentRecognizer(doc_orien_cls=True, doc_unwarping=False, textline_orien=False)
 
 @app.route('/deliverDoc/recognize', methods=['POST'])
 def recognize_delivery_document():
@@ -43,11 +43,17 @@ def recognize_delivery_document():
             os.makedirs(foldername)
         img_save_path = f'{foldername}/image_{timestamp}.jpg'
         cv2.imwrite(img_save_path, img)
-        result = recognizer.extract_info(img_save_path)
+        timestamp, project_name, product_name_list, ring_id_list, product_cnt_list = recognizer.extract_deliver_doc_info(img_save_path)
         
         return jsonify({
             'success': True,
-            'data': result
+            'data': {
+                'timestamp': timestamp,
+                'project_name': project_name,
+                'product_name_list': product_name_list,
+                'ring_id_list': ring_id_list,
+                'product_cnt_list': product_cnt_list
+            }
         }), 200
     
     except Exception as e:

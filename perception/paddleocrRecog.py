@@ -73,7 +73,7 @@ def get_image_dimensions_resized(img_file, max_dimension=1296*1296):
         new_width = int(image_width * scale_factor)
         new_height = int(image_height * scale_factor)
         print(f"Resized image size: {new_width}x{new_height}")
-        img = img.resize((new_width, new_height))
+        img = cv2.resize(img, (new_width, new_height))
     else:
         new_width, new_height = image_width, image_height
     
@@ -144,21 +144,21 @@ class DocumentRecognizer:
                 # print('产品名称1', temp)
                 # print(idx, rec_polys[idx])
                 product_name_list.append(temp)
-                center_x = (rec_polys[idx][0][0] + rec_polys[idx][1][0]+rec_polys[idx][2][0] + rec_polys[idx][3][0]) / 2
-                center_y = (rec_polys[idx][0][1] + rec_polys[idx][1][1]+rec_polys[idx][2][1] + rec_polys[idx][3][1]) / 2
+                center_x = (rec_polys[idx][0][0] + rec_polys[idx][1][0]+rec_polys[idx][2][0] + rec_polys[idx][3][0]) / 4
+                center_y = (rec_polys[idx][0][1] + rec_polys[idx][1][1]+rec_polys[idx][2][1] + rec_polys[idx][3][1]) / 4
                 product_name_coords.append((center_x, center_y))
             elif len(re.findall(r'-', text)) == 2:
                 # print('环号：', text)
                 # print(idx, rec_polys[idx])
                 ring_id_list.append(text)
-                center_x = (rec_polys[idx][0][0] + rec_polys[idx][1][0]+rec_polys[idx][2][0] + rec_polys[idx][3][0]) / 2
-                center_y = (rec_polys[idx][0][1] + rec_polys[idx][1][1]+rec_polys[idx][2][1] + rec_polys[idx][3][1]) / 2
+                center_x = (rec_polys[idx][0][0] + rec_polys[idx][1][0]+rec_polys[idx][2][0] + rec_polys[idx][3][0]) / 4
+                center_y = (rec_polys[idx][0][1] + rec_polys[idx][1][1]+rec_polys[idx][2][1] + rec_polys[idx][3][1]) / 4
                 ring_id_coords.append((center_x, center_y))
             elif bool(re.search(r'\.', text)) and bool(re.search(r'm', text)):
                 print('产品名称2：', text)
                 # print(idx, rec_polys[idx])
-                center_x = (rec_polys[idx][0][0] + rec_polys[idx][1][0]+rec_polys[idx][2][0] + rec_polys[idx][3][0]) / 2
-                center_y = (rec_polys[idx][0][1] + rec_polys[idx][1][1]+rec_polys[idx][2][1] + rec_polys[idx][3][1]) / 2
+                center_x = (rec_polys[idx][0][0] + rec_polys[idx][1][0]+rec_polys[idx][2][0] + rec_polys[idx][3][0]) / 4
+                center_y = (rec_polys[idx][0][1] + rec_polys[idx][1][1]+rec_polys[idx][2][1] + rec_polys[idx][3][1]) / 4
                 print(center_x, image_width/2)
                 if center_x < image_width / 2:
                     if not text[0]=="（" and not text[0]=="(":
@@ -168,8 +168,8 @@ class DocumentRecognizer:
                     product_name_list[product_name_num] = product_name_list[product_name_num] + text
                     product_name_num += 1
             elif text.isdigit() and int(text) < 10:
-                center_x = (rec_polys[idx][0][0] + rec_polys[idx][1][0]+rec_polys[idx][2][0] + rec_polys[idx][3][0]) / 2
-                center_y = (rec_polys[idx][0][1] + rec_polys[idx][1][1]+rec_polys[idx][2][1] + rec_polys[idx][3][1]) / 2
+                center_x = (rec_polys[idx][0][0] + rec_polys[idx][1][0]+rec_polys[idx][2][0] + rec_polys[idx][3][0]) / 4
+                center_y = (rec_polys[idx][0][1] + rec_polys[idx][1][1]+rec_polys[idx][2][1] + rec_polys[idx][3][1]) / 4
                 # print('数量候选：', text)
                 # print(len(ring_id_list), center_x)
                 if len(product_cnt_list) < 1 and center_x > image_width / 2:

@@ -14,7 +14,7 @@ from perception.crewStaffSecRecog import CrewStaffSecurityRecognizer
 from perception.truckRecog import TruckRecognizer
 
 class RTSPStreamRecognizer:
-    def __init__(self, rtsp_urls, truck_model, interval=20):
+    def __init__(self, rtsp_urls, truck_model, safe_model, interval=20):
         """
         Args:
             rtsp_urls: List of 16 RTSP stream URLs
@@ -26,14 +26,39 @@ class RTSPStreamRecognizer:
         self.threads = []
         self.running = True
         self.truck_recognizer = TruckRecognizer(truck_model)
+        self.safe_recognizer = CrewStaffSecurityRecognizer(safe_model)
     
     def process_stream(self, rtsp_url):
         """Process single RTSP stream"""
         
         # Determine interval based on stream ID
         # 安全帽和反光衣识别
-        if 'c16' in rtsp_url:
-            interval = 5
+        if 'c16' in rtsp_url or 'c13' in rtsp_url:
+            interval = 3
+
+            noHelmetNum, noClothesNum, ret_frame = self.safe_recognizer.recognize_security_from_rtsp(rtsp_url)
+            
+            image_bytes = cv2.imencode('.jpg', ret_frame)[1].tobytes()
+            files={'imageFile':(img_name, image_bytes, 'image/jpeg')}
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            url = "http://112.124.54.138:5001/api/safeInfo"
+            if 'c13' in rtsp_url:
+                place = "工地大门口"
+            else:
+                place = "下井通道"
+            
+            response = requests.post(
+                url,
+                data={
+                    "place": place,
+                    "noClothesNum": noClothesNum,
+                    "noHelmetNum": noHelmetNum
+                },
+                files=files
+            )
+            print(f"Posted safety info to server: {response.status_code}, {response.text}")
+        
+
         # elif any(cam in rtsp_url for cam in ['c11', 'c13', 'c23', 'c25', 'c26']):
         #     interval = self.interval
         # c4 渣土车车牌号识别
@@ -43,7 +68,7 @@ class RTSPStreamRecognizer:
             # ret_frame_b64 = bytes_to_base64(image_bytes)
             if truck_number:
                 image_bytes = cv2.imencode('.jpg', ret_frame)[1].tobytes()
-                requests.post(
+                response = requests.post(
                     "http://112.124.54.138:5001/api/loadcars/image",
                     json={
                         "licenSeplate": truck_number,
@@ -51,6 +76,7 @@ class RTSPStreamRecognizer:
                         "imageFile": image_bytes
                     }
                 )
+                print(f"Posted truck plate info to server: {response.status_code}, {response.text}")
                 time.sleep(interval) 
             else:
                 time.sleep(interval//2)
@@ -102,8 +128,8 @@ if __name__ == "__main__":
 	    # "rtsp://admin:123456@192.168.110.118:554/unicast/c10/s0/live"	        #外部球机	砂浆站
 	    # "rtsp://admin:123456@192.168.110.118:554/unicast/c11/s0/live"	        #外部球机	右线概况
 	    # "rtsp://admin:123456@192.168.110.118:554/unicast/c12/s0/live"	        #外部球机	路口围挡
-	    # "rtsp://admin:123456@192.168.110.118:554/unicast/c13/s0/live"	        #外部球机	工地大门口2
-	    # "rtsp://admin:123456@192.168.110.118:554/unicast/c16/s0/live"	        #外部枪机	下井通道
+	    "rtsp://admin:123456@192.168.110.118:554/unicast/c13/s0/live"	        #外部球机	工地大门口2
+	    "rtsp://admin:123456@192.168.110.118:554/unicast/c16/s0/live"	        #外部枪机	下井通道
 	    # "rtsp://admin:123456@192.168.110.118:554/unicast/c22/s0/live"	        #外部球机	右线井口
 	    # "rtsp://admin:123456@192.168.110.118:554/unicast/c23/s0/live"	        #外部球机	左线洞口
 	    # "rtsp://admin:123456@192.168.110.118:554/unicast/c24/s0/live"	        #外部球机	左线井口

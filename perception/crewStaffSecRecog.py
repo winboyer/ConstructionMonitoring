@@ -38,7 +38,8 @@ class CrewStaffSecurityRecognizer:
         """
         bbox = getDeteBBox_v2(self.preprocess_infos, self.draw_threshold, self.deteModel, frame)
         print(f"detection bbox: {bbox}")
-        out_helmet, out_fgy = False, False  # Default to True
+        out_helmet, out_fgy = True, True          # Default to True
+        no_helmet_num, no_fgy_num = 0, 0
         if len(bbox) != 0:
             batch_crop_img = getCropImg(frame, bbox)
             result_list = getClsResult(batch_crop_img, self.clsModel)
@@ -61,10 +62,12 @@ class CrewStaffSecurityRecognizer:
                     frame = cv2.putText(frame, 'no helmet', (x1, y1-10), textFont, 1, (0,0,255), 1)
                     # cv2.rectangle(frame, (x1-5, y1-5), (x2+5, y2+5), (0, 0, 255), 5)
                     print('未戴安全帽')
+                    no_helmet_num += 1
                 if out_fgy == False and out_person == True:
                     # cv2.rectangle(frame, (x1-5, y1-5), (x2+5, y2+5), (0, 0, 255), 5)
                     frame = cv2.putText(frame, 'no reflect_vest', (x1, (y1+y2)//2), textFont, 1, (0,255,0), 1)
                     print('未穿反光衣')
+                    no_fgy_num += 1
         
         return out_helmet, out_fgy, frame
     
@@ -104,9 +107,8 @@ class CrewStaffSecurityRecognizer:
             
         except Exception as e:
             cap.release()
-            return False, f"Error: {str(e)}"
-
-
+            print(f"Error during recognition: {str(e)}")
+            return False, False, None, None
 
 if __name__ == "__main__":
     model_path = "/Users/jinyfeng/tools/helmet"  # Update with your model directory

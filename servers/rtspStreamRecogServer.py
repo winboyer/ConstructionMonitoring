@@ -35,18 +35,16 @@ class RTSPStreamRecognizer:
         # 安全帽和反光衣识别
         if 'c16' in rtsp_url or 'c13' in rtsp_url:
             interval = 3
-
-            noHelmetNum, noClothesNum, ret_frame = self.safe_recognizer.recognize_security_from_rtsp(rtsp_url)
-            
+            noHelmetNum, noClothesNum, filename, ret_frame = self.safe_recognizer.recognize_security_from_rtsp(rtsp_url)
             image_bytes = cv2.imencode('.jpg', ret_frame)[1].tobytes()
-            files={'imageFile':(img_name, image_bytes, 'image/jpeg')}
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            files={'imageFile':(filename, image_bytes, 'image/jpeg')}
             url = "http://112.124.54.138:5001/api/safeInfo"
             if 'c13' in rtsp_url:
                 place = "工地大门口"
+                time.sleep(1)
             else:
                 place = "下井通道"
-            
+                time.sleep(2)
             response = requests.post(
                 url,
                 data={
@@ -57,7 +55,6 @@ class RTSPStreamRecognizer:
                 files=files
             )
             print(f"Posted safety info to server: {response.status_code}, {response.text}")
-        
 
         # elif any(cam in rtsp_url for cam in ['c11', 'c13', 'c23', 'c25', 'c26']):
         #     interval = self.interval

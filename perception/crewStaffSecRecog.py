@@ -59,17 +59,17 @@ class CrewStaffSecurityRecognizer:
                 out_person = True if pred_person[1] >= 0.8 else False
                 # print(f"out_helmet: {out_helmet}, out_fgy: {out_fgy}, out_person: {out_person}")
                 if out_helmet == False and out_person == True:
-                    frame = cv2.putText(frame, 'no helmet', (x1, y1-10), textFont, 1, (0,0,255), 1)
+                    # frame = cv2.putText(frame, 'no helmet', (x1, y1-10), textFont, 1, (0,0,255), 1)
                     # cv2.rectangle(frame, (x1-5, y1-5), (x2+5, y2+5), (0, 0, 255), 5)
                     print('未戴安全帽')
                     no_helmet_num += 1
                 if out_fgy == False and out_person == True:
                     # cv2.rectangle(frame, (x1-5, y1-5), (x2+5, y2+5), (0, 0, 255), 5)
-                    frame = cv2.putText(frame, 'no reflect_vest', (x1, (y1+y2)//2), textFont, 1, (0,255,0), 1)
+                    # frame = cv2.putText(frame, 'no reflect_vest', (x1, (y1+y2)//2), textFont, 1, (0,255,0), 1)
                     print('未穿反光衣')
                     no_fgy_num += 1
         
-        return out_helmet, out_fgy, frame
+        return no_helmet_num, no_fgy_num, frame
     
     def recognize_security_from_rtsp(self, rtsp_url: str, interval=20) -> Tuple[bool, str]:
         """
@@ -79,12 +79,12 @@ class CrewStaffSecurityRecognizer:
         Returns:
         """
         try:
-            
             cap = cv2.VideoCapture(rtsp_url)
+            channel_name = rtsp_url.split('/')[-3]
             if not cap.isOpened():
                 print(f"Failed to open video source: {rtsp_url}")
                 cap.release()
-                return False, "Failed to open video source"
+                return 0, 0, None, None
             
             while True:
                 ret, frame = cap.read()
@@ -92,23 +92,26 @@ class CrewStaffSecurityRecognizer:
                     print(f"Failed to read frame")
                     continue
 
-                helmet_flag, reflectvest_flag, ret_frame = self._detect_safety_gear(frame)
-                if helmet_flag is False or reflectvest_flag is False:
+                image_save_folder = Path("./detected_safety_violations")
+                if not image_save_folder.exists():
+                    image_save_folder.mkdir(parents=True, exist_ok=True)
+                no_helmet_num, no_fgy_num, ret_frame = self._detect_safety_gear(frame)
+                if no_helmet_num > 0 or no_fgy_num > 0:
                     timestamp = datetime.now().isoformat()
-                    temp_image_path = f"violation_frame_{timestamp}.jpg"
+                    temp_image_path = f"{image_save_folder}/{channel_name}_frame_{timestamp}.jpg"
                     cv2.imwrite(temp_image_path, frame)
                     # Convert frame to base64
                     _, buffer = cv2.imencode('.jpg', ret_frame)
                     frame_base64 = base64.b64encode(buffer).decode('utf-8')
                     cap.release()
-                    return helmet_flag, reflectvest_flag, frame_base64, timestamp
+                    return no_helmet_num, no_fgy_num, temp_image_path.split('/')[-1], ret_frame
 
                 time.sleep(interval)                
             
         except Exception as e:
             cap.release()
             print(f"Error during recognition: {str(e)}")
-            return False, False, None, None
+            return 0, 0, None
 
 if __name__ == "__main__":
     model_path = "/Users/jinyfeng/tools/helmet"  # Update with your model directory
@@ -122,8 +125,9 @@ if __name__ == "__main__":
     if frame is None:
         print(f"Failed to load image: {image_path}")
     else:
-        helmet_flag, reflectvest_flag, ret_frame = recognizer._detect_safety_gear(frame)
-        print(f"Helmet detected: {helmet_flag}, Reflective vest detected: {reflectvest_flag}")
+        no_helmet_num, no_fgy_num, filename, ret_frame = recognizer._detect_safety_gear(frame)
+        print(f"No helmet detected: {no_helmet_num}, No reflective vest detected: {no_fgy_num}")
+
         cv2.imshow("Result", ret_frame)
         cv2.waitKey(0)
         cv2.destroyAllWindows()

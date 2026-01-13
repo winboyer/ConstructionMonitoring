@@ -9,6 +9,7 @@ import time
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from perception.paddleocrRecog import DocumentRecognizer
 from ultralytics import YOLO
+import requests
 
 class TruckRecognizer:
     def __init__(self, model_path):
@@ -74,9 +75,10 @@ class TruckRecognizer:
                         cv2.imwrite(f"{image_save_folder}/image_{timestamp}.jpg", frame)
                         break
         print(f"Detected truck number: {truck_number}")
+        # ret_frame_b64 = bytes_to_base64(image_bytes)
         return truck_number, frame, timestamp
 
-    def recognize_trucknum_from_rtsp(self, video_stream: str) -> Tuple[Optional[str], Optional[any], Optional[str]]:
+    def recognize_trucknum_from_rtsp(self, video_stream: str, interval=300) -> Tuple[Optional[str], Optional[any], Optional[str]]:
         """
         
         Args:
@@ -98,12 +100,22 @@ class TruckRecognizer:
                     continue
                 truck_number, ret_frame, timestamp = self.detect_truck(frame)
                 if truck_number:
-                    cap.release()
-                    return truck_number, ret_frame, timestamp              
-                time.sleep(30)      
+                    image_bytes = cv2.imencode('.jpg', ret_frame)[1].tobytes()
+                    response = requests.post(
+                        "http://112.124.54.138:5001/api/loadcars/image",
+                        json={
+                            "licenSeplate": truck_number,
+                            "timestamp": timestamp,
+                            "imageFile": image_bytes
+                        }
+                    )
+                    print(f"Posted truck plate info to server: {response.status_code}, {response.text}")
+                    time.sleep(interval) 
+                
+                time.sleep(interval//2)      
         except Exception as e:
             cap.release()
-            return False, f"Error: {str(e)}", None
+            print(f"Error processing video stream: {video_stream}, Exception:{e}")
 
 if __name__ == "__main__":
     model_path = "/Users/jinyfeng/tools/object-det/yolo11n.pt"  # Update with your model directory

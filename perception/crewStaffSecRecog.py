@@ -9,6 +9,7 @@ import onnxruntime
 import sys
 from perception.util import getDeteBBox_v2,getCropImg,getClsResult
 import base64
+import requests
 onnxruntime.set_default_logger_severity(3)
 textFont = cv2.FONT_HERSHEY_SIMPLEX
 
@@ -38,6 +39,7 @@ class CrewStaffSecurityRecognizer:
         """
         bbox = getDeteBBox_v2(self.preprocess_infos, self.draw_threshold, self.deteModel, frame)
         print(f"detection bbox: {bbox}")
+        
         out_helmet, out_fgy = True, True          # Default to True
         no_helmet_num, no_fgy_num = 0, 0
         if len(bbox) != 0:
@@ -95,23 +97,45 @@ class CrewStaffSecurityRecognizer:
                 image_save_folder = Path("./detected_safety_violations")
                 if not image_save_folder.exists():
                     image_save_folder.mkdir(parents=True, exist_ok=True)
+                
+                if 'c13' in rtsp_url:
+                    place = "工地大门口"
+                    time.sleep(1)
+                else:
+                    place = "下井通道"
+                    time.sleep(2)
+
                 no_helmet_num, no_fgy_num, ret_frame = self._detect_safety_gear(frame)
                 if no_helmet_num > 0 or no_fgy_num > 0:
                     timestamp = datetime.now().isoformat()
                     temp_image_path = f"{image_save_folder}/{channel_name}_frame_{timestamp}.jpg"
                     cv2.imwrite(temp_image_path, frame)
                     # Convert frame to base64
-                    _, buffer = cv2.imencode('.jpg', ret_frame)
-                    frame_base64 = base64.b64encode(buffer).decode('utf-8')
-                    cap.release()
-                    return no_helmet_num, no_fgy_num, temp_image_path.split('/')[-1], ret_frame
-
-                time.sleep(interval)                
+                    # _, buffer = cv2.imencode('.jpg', ret_frame)
+                    # frame_base64 = base64.b64encode(buffer).decode('utf-8')
+                    
+                    image_bytes = cv2.imencode('.jpg', ret_frame)[1].tobytes()
+                    files={'imageFile':(filename, image_bytes, 'image/jpeg')}
+                    url = "http://112.124.54.138:5001/api/safeInfo"
+                    
+                    response = requests.post(
+                        url,
+                        data={
+                            "place": place,
+                            "noClothesNum": no_fgy_num,
+                            "noHelmetNum": no_helmet_num
+                        },
+                        files=files
+                    )
+                    print(f"Posted safety info to server: {response.status_code}, {response.text}")
+                    time.sleep(interval)
+                    
+                time.sleep(interval/10)                
             
         except Exception as e:
             cap.release()
             print(f"Error during recognition: {str(e)}")
-            return 0, 0, None
+            return 0, 0, None, None
 
 if __name__ == "__main__":
     model_path = "/Users/jinyfeng/tools/helmet"  # Update with your model directory

@@ -85,18 +85,28 @@ class TruckRecognizer:
         
         Returns:
         """
-        try:            
-            cap = cv2.VideoCapture(video_stream)
-            if not cap.isOpened():
-                print(f"Failed to open video source: {video_stream}")
+        try:
+            cap = None
+            max_retries = 3
+            for attempt in range(max_retries):
+                cap = cv2.VideoCapture(video_stream)
+                if cap.isOpened():
+                    break
+                print(f"Failed to open video source: {video_stream} (Attempt {attempt + 1}/{max_retries})")
                 cap.release()
-                return None, None, None
+                time.sleep(2)  # Wait before retrying
+            
+            if cap is None or not cap.isOpened():
+                print(f"Failed to open video source after {max_retries} attempts: {video_stream}")
+                if cap is not None:
+                    cap.release()
+                return 
             
             while True:
                 ret, frame = cap.read()
                 if not ret:
-                    print(f"Failed to read frame")
-                    time.sleep(10)
+                    print(f"Failed to read truckRecog frame")
+                    time.sleep(1)
                     continue
                 truck_number, ret_frame, timestamp = self.detect_truck(frame)
                 if truck_number:

@@ -81,22 +81,34 @@ class CrewStaffSecurityRecognizer:
         Returns:
         """
         try:
-            cap = cv2.VideoCapture(rtsp_url)
             channel_name = rtsp_url.split('/')[-3]
-            if not cap.isOpened():
-                print(f"Failed to open video source: {rtsp_url}")
+            cap = None
+            max_retries = 3
+            for attempt in range(max_retries):
+                cap = cv2.VideoCapture(rtsp_url)
+                if cap.isOpened():
+                    break
+                print(f"Failed to open video source: {rtsp_url} (Attempt {attempt + 1}/{max_retries})")
                 cap.release()
-                return 0, 0, None, None
+                time.sleep(2)  # Wait before retrying
+            
+            if cap is None or not cap.isOpened():
+                print(f"Failed to open video source after {max_retries} attempts: {rtsp_url}")
+                if cap is not None:
+                    cap.release()
+                return 
             
             while True:
                 ret, frame = cap.read()
                 if not ret:
-                    print(f"Failed to read frame")
+                    print(f"Failed to read crewStaffSecRecog frame")
+                    time.sleep(1)
                     continue
 
-                image_save_folder = Path("./detected_safety_violations")
+                image_save_folder = Path("detected_safety_violations")
                 if not image_save_folder.exists():
-                    image_save_folder.mkdir(parents=True, exist_ok=True)
+                    # image_save_folder.mkdir(parents=True, exist_ok=True)
+                    os.makedirs(image_save_folder, exist_ok=True)
                 
                 if 'c13' in rtsp_url:
                     place = "工地大门口"
@@ -106,10 +118,18 @@ class CrewStaffSecurityRecognizer:
                     time.sleep(2)
 
                 no_helmet_num, no_fgy_num, ret_frame = self._detect_safety_gear(frame)
+                
+                timestamp = datetime.now().isoformat()
+                dt = datetime.now().strftime('%Y%m%d_%H-%M-%S')
+                t = time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime())
+
+                filename = f"{channel_name}_frame_{timestamp}.jpg"
+                temp_image_path = f"{image_save_folder}/{filename}"
+                print(f"Temporary image path: {temp_image_path}")
+
+                cv2.imwrite(temp_image_path, frame)
                 if no_helmet_num > 0 or no_fgy_num > 0:
-                    timestamp = datetime.now().isoformat()
-                    temp_image_path = f"{image_save_folder}/{channel_name}_frame_{timestamp}.jpg"
-                    cv2.imwrite(temp_image_path, frame)
+                    # cv2.imwrite(temp_image_path, frame)
                     # Convert frame to base64
                     # _, buffer = cv2.imencode('.jpg', ret_frame)
                     # frame_base64 = base64.b64encode(buffer).decode('utf-8')
@@ -129,13 +149,13 @@ class CrewStaffSecurityRecognizer:
                     )
                     print(f"Posted safety info to server: {response.status_code}, {response.text}")
                     time.sleep(interval)
-                    
+
                 time.sleep(interval/10)                
             
         except Exception as e:
             cap.release()
             print(f"Error during recognition: {str(e)}")
-            return 0, 0, None, None
+            return 
 
 if __name__ == "__main__":
     model_path = "/Users/jinyfeng/tools/helmet"  # Update with your model directory

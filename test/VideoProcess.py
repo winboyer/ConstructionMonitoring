@@ -6,8 +6,6 @@ import cv2
 import sys
 import os
 import time
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from perception.paddleocrRecog import DocumentRecognizer
 from ultralytics import YOLO
 
 
@@ -34,21 +32,33 @@ def object_detect(frame, model):
         
         if class_names[int(c)] == 'person':
             print("Detected a person!")
-            cv2.rectangle(frame, (int(xyxy[i][0]), int(xyxy[i][1])), (int(xyxy[i][2]), int(xyxy[i][3])), (0, 255, 0), 2)
+            # cv2.rectangle(frame, (int(xyxy[i][0]), int(xyxy[i][1])), (int(xyxy[i][2]), int(xyxy[i][3])), (0, 255, 0), 2)
+            
+            # cv2.imshow("Frame", frame)
+            # cv2.waitKey(0)
+            # cv2.destroyAllWindows()
+            return frame
 
-            cv2.imshow("Frame", frame)
-            cv2.waitKey(0)
-            cv2.destroyAllWindows()
-
-    return cls, frame
+    return None
 
 
 
 if __name__ == "__main__":
     
-    file_path = "/Users/jinyfeng/Downloads/2897f7c79704abf07bf74d05ed0e585a_raw.mp4"  # Update with your video file path
-    # file_path = "/Users/jinyfeng/Downloads/16f3d2dbf72b7506c8252dcf147f6758_raw.mp4"  # Update with your video file path
-    model_path = "/Users/jinyfeng/tools/object-det/yolo11n.pt"  # Update with your model directory
+    # folder = "/Users/jinyfeng/Downloads/"
+    folder = "/home/jinyfeng/datas/suidao/"
+
+    # filename = "2897f7c79704abf07bf74d05ed0e585a.mp4"
+    # filename = "2897f7c79704abf07bf74d05ed0e585a_raw.mp4"
+    filename = "16f3d2dbf72b7506c8252dcf147f6758.mp4"
+    # filename = "16f3d2dbf72b7506c8252dcf147f6758_raw.mp4" 
+
+    file_path = os.path.join(folder, filename)
+    save_folder = os.path.join(folder, filename.split('.')[0])
+    if not os.path.exists(save_folder):
+        os.makedirs(save_folder)
+    # model_path = "/Users/jinyfeng/tools/object-det/yolo11n.pt"  # Update with your model directory
+    model_path = "/home/jinyfeng/models/yolo/yolo-v11/yolo11n.pt"  # Update with your model directory
     det_model = YOLO(model_path)
 
     import sys
@@ -56,6 +66,7 @@ if __name__ == "__main__":
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
     cap = cv2.VideoCapture(file_path)
+    image_counter = 0
     if cap is None or not cap.isOpened():
         print(f"Failed to open video source: {file_path}")
         cap.release()
@@ -65,6 +76,14 @@ if __name__ == "__main__":
         if not ret:
             print(f"Failed to read frame")
             time.sleep(1)
-            continue
+            break
         
-        results, frame = object_detect(frame, det_model)
+        result = object_detect(frame, det_model)
+        if result is not None:
+            print("Person detected and image saved.")
+            # Optionally break the loop if you only want the first detection
+
+            image_counter += 1
+            cv2.imwrite(os.path.join(save_folder, f"person_{image_counter}.jpg"), frame)
+            time.sleep(0.01)
+            

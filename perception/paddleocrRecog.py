@@ -69,7 +69,9 @@ def get_image_dimensions_resized(img_file, max_dimension=1296*1296):
     img = get_image_file(img_file)
 
     if image_width * image_height > max_dimension:
-        scale_factor = (max_dimension / (image_width * image_height)) ** 0.5
+        max_len = max(image_width, image_height)
+        scale_factor = (max_dimension ** 0.5 / max_len)
+        print(f"Resizing image by scale factor: {scale_factor}")
         new_width = int(image_width * scale_factor)
         new_height = int(image_height * scale_factor)
         print(f"Resized image size: {new_width}x{new_height}")
@@ -93,14 +95,11 @@ class DocumentRecognizer:
         # print(f"Extracting document info from image: {img_path}")
         _, _, image= get_image_dimensions_resized(img_path)
         result = self.ocr.predict(input=image)
-        # print('prediction result length:', len(result))
+        print('prediction result length:', len(result))
         rec_texts = result[0].get('rec_texts', []) if result else []
-        # print(len(rec_texts), rec_texts)
+        print(len(rec_texts), rec_texts)
         
-        return {
-            'result': rec_texts,
-            'total': len(rec_texts)
-        }
+        return rec_texts
     def extract_deliver_doc_info(self, img_path):
         """Extract delivery document information from image"""
         # print(f"Extracting delivery document info from image: {img_path}")

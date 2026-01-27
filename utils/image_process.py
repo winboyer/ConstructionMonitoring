@@ -4,6 +4,36 @@ from PIL import Image
 import base64
 import numpy as np
 
+def scale_person_bbox(bbox, img_width, img_height, scale=1.2):
+    """
+    Scale the person bounding box by a given factor.
+    
+    Args:
+        bbox (list or tuple): Original bounding box [x_min, y_min, x_max, y_max]
+        scale (float): Scaling factor
+        img_width (int): Width of the image
+        img_height (int): Height of the image
+        
+    Returns:
+        list: Scaled bounding box [x_min, y_min, x_max, y_max]
+    """
+    x_min, y_min, x_max, y_max = bbox
+    box_width = x_max - x_min
+    box_height = y_max - y_min
+    
+    center_x = x_min + box_width / 2
+    center_y = y_min + box_height / 2
+    
+    new_width = box_width * scale
+    new_height = box_height * scale
+    
+    new_x_min = max(0, int(center_x - new_width / 2))
+    new_y_min = max(0, int(center_y - new_height / 2))
+    new_x_max = min(img_width, int(center_x + new_width / 2))
+    new_y_max = min(img_height, int(center_y + new_height / 2))
+    
+    return [new_x_min, new_y_min, new_x_max, new_y_max]
+
 def is_base64_image_data(image_input):
     """
     Check if the input is base64 encoded image data
@@ -207,4 +237,13 @@ def base64_to_bytes(base64_string):
     """
     return base64.b64decode(base64_string)
 
+
+def mask_to_bbox(mask: np.ndarray):
+    """根据二值掩膜计算最小外接矩形"""
+    ys, xs = np.where(mask > 0)
+    if len(xs) == 0 or len(ys) == 0:
+        return None  # 没有目标
+    x_min, x_max = xs.min(), xs.max()
+    y_min, y_max = ys.min(), ys.max()
+    return [int(x_min), int(y_min), int(x_max), int(y_max)]
 

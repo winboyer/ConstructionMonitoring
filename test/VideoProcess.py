@@ -47,11 +47,28 @@ if __name__ == "__main__":
     
     # folder = "/Users/jinyfeng/Downloads/"
     folder = "/home/jinyfeng/datas/suidao/"
+    folder = "/home/jinyfeng/datas/suidao/safe_det/xiajingkou16_20260120/"
+    folder = "/home/jinyfeng/datas/suidao/safe_det/xiajingkou16_20260121/"
+
+    # folder = "/home/jinyfeng/datas/suidao/guanpian_det/20260126/"
 
     # filename = "2897f7c79704abf07bf74d05ed0e585a.mp4"
     # filename = "2897f7c79704abf07bf74d05ed0e585a_raw.mp4"
     filename = "16f3d2dbf72b7506c8252dcf147f6758.mp4"
     # filename = "16f3d2dbf72b7506c8252dcf147f6758_raw.mp4" 
+
+    # filename = 'S20260126170251_E20260126170519.mp4'
+    # filename = 'S20260126171822_E20260126172102.mp4'
+    # filename = 'S20260126172820_E20260126173118.mp4'
+    filename = 'S20260126174446_E20260126174750.mp4'
+
+    filename = "S20260120162627_E20260120163550.mp4" # xiajingkou16_20260120
+
+    filename = "S20260121083137_E20260121083223.mp4" # xiajingkou16_20260121
+    filename = "S20260121083224_E20260121083444.mp4" # xiajingkou16_20260121
+    filename = "S20260121142254_E20260121143041.mp4" # xiajingkou16_20260121
+    filename = "S20260121145338_E20260121145633.mp4" # xiajingkou16_20260121
+    filename = "S20260121145917_E20260121150608.mp4" # xiajingkou16_20260121
 
     file_path = os.path.join(folder, filename)
     save_folder = os.path.join(folder, filename.split('.')[0])
@@ -67,23 +84,37 @@ if __name__ == "__main__":
 
     cap = cv2.VideoCapture(file_path)
     image_counter = 0
+    frame_cnt = 0
     if cap is None or not cap.isOpened():
         print(f"Failed to open video source: {file_path}")
         cap.release()
         sys.exit(1)
     while True:
         ret, frame = cap.read()
+        
         if not ret:
             print(f"Failed to read frame")
             time.sleep(1)
             break
+        # print(frame.shape)
+        # 间隔保存每第三帧
+        frame_cnt += 1
+        if frame_cnt % 9 != 0:
+            continue
+
+        # image_counter += 1
+        # print(f"Saving image {image_counter}")
+        # save_name = os.path.join(save_folder, f"{filename.split('.')[0]}_cnt_{image_counter}.jpg")
+        # cv2.imwrite(save_name, frame)
+        # time.sleep(0.01)
         
         result = object_detect(frame, det_model)
         if result is not None:
             print("Person detected and image saved.")
             # Optionally break the loop if you only want the first detection
-
             image_counter += 1
-            cv2.imwrite(os.path.join(save_folder, f"person_{image_counter}.jpg"), frame)
+            print(f"Saving image {image_counter}")
+            save_name = os.path.join(save_folder, f"{filename.split('.')[0]}_cnt_{image_counter}.jpg")
+            cv2.imwrite(save_name, frame)
             time.sleep(0.01)
             

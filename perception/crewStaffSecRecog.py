@@ -52,6 +52,7 @@ class CrewStaffSecurityRecognizer:
         
         img_height, img_width = frame.shape[:2]
         scale = 1.2
+        helmet_num, fgy_num = 0, 0
         for box in bboxes:
             x_min, y_min, x_max, y_max, box_conf = box
             x_min_new, y_min_new, x_max_new, y_max_new = scale_person_bbox(box, img_width, img_height, scale)
@@ -59,14 +60,36 @@ class CrewStaffSecurityRecognizer:
             person_crop = frame[int(y_min_new):int(y_max_new), int(x_min_new):int(x_max_new)]
             safe_results = self.safe_model.predict(source=person_crop)
 
+            helmet_flag, fgy_flag = False, False
             for safe_result in safe_results:
                 safe_cls = safe_result.boxes.cls.cpu().numpy()
                 safe_conf = safe_result.boxes.conf.cpu().numpy()
                 safe_boxes = safe_result.boxes.xyxy.cpu().numpy()
                 safe_cls_names = [self.safe_model.names[int(c)] for c in cls]
+                for idx, safe_name in enumerate(safe_cls_names):
+                    if safe_name in ['aqm', 'fgmj']:
+                        x_min_safe, y_min_safe, x_max_safe, y_max_safe = safe_boxes[idx]
+                        conf = safe_boxes[idx]
+                        print(f"Confidence: {conf}")
+                        if conf < 0.5:
+                            continue
+                        x_min_orig = int(x_min_new + x_min_safe)
+                        y_min_orig = int(y_min_new + y_min_safe)
+                        x_max_orig = int(x_min_new + x_max_safe)
+                        y_max_orig = int(y_min_new + y_max_safe)
 
-
-        
+                        if safe_name == 'aqm' and helmet_flag == False:
+                            helmet_flag = True
+                            helmet_num += 1
+                            cv2.rectangle(frame, (x_min_orig, y_min_orig), (x_max_orig, y_max_orig), (0,0,255), 2)
+                            # cv2.putText(frame, safe_name, (x_min_orig, y_min_orig-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36,12,255), 2)
+                        elif safe_name == 'fgmj' and fgy_flag == False:
+                            fgy_flag = True
+                            fgy_num += 1
+                            cv2.rectangle(frame, (x_min_orig, y_min_orig), (x_max_orig, y_max_orig), (0,255,0), 2)
+                            # cv2.putText(frame, safe_name, (x_min_orig, y_min_orig-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36,255,12), 2)
+        no_helmet_num = len(bboxes) - helmet_num
+        no_fgy_num = len(bboxes) - fgy_num
         
         return no_helmet_num, no_fgy_num, frame
     
@@ -95,30 +118,28 @@ class CrewStaffSecurityRecognizer:
                     cap.release()
                 return 
             
+            image_save_folder = Path("detected_safety_violations")
+            if not image_save_folder.exists():
+                # image_save_folder.mkdir(parents=True, exist_ok=True)
+                os.makedirs(image_save_folder, exist_ok=True)
+
             while True:
                 ret, frame = cap.read()
                 if not ret:
                     print(f"Failed to read crewStaffSecRecog frame")
                     time.sleep(1)
                     continue
-
-                image_save_folder = Path("detected_safety_violations")
-                if not image_save_folder.exists():
-                    # image_save_folder.mkdir(parents=True, exist_ok=True)
-                    os.makedirs(image_save_folder, exist_ok=True)
-                
-                if 'c13' in rtsp_url:
-                    place = "工地大门口"
-                    time.sleep(1)
-                else:
-                    place = "下井通道"
-                    time.sleep(2)
-
-                no_helmet_num, no_fgy_num, ret_frame = self._detect_safety_gear(frame)
                 
                 timestamp = datetime.now().isoformat()
                 dt = datetime.now().strftime('%Y%m%d_%H-%M-%S')
                 t = time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime())
+                no_helmet_num, no_fgy_num, ret_frame = self._detect_safety_gear(frame)
+                if 'c13' in rtsp_url:
+                    place = "工地大门口"
+                    # time.sleep(1)
+                elif 'c16' in rtsp_url:
+                    place = "下井通道"
+                    # time.sleep(2)
 
                 filename = f"{channel_name}_frame_{timestamp}.jpg"
                 temp_image_path = f"{image_save_folder}/{filename}"

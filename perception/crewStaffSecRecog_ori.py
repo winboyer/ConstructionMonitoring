@@ -10,35 +10,27 @@ import sys
 from ultralytics import YOLO
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from perception.util import getDeteBBox_v2,getCropImg,getClsResult
-from utils.image_process import (scale_person_bbox)
 import base64
 import requests
 onnxruntime.set_default_logger_severity(3)
 textFont = cv2.FONT_HERSHEY_SIMPLEX
 
 class CrewStaffSecurityRecognizer:
-    def __init__(self, person_model, safe_model):
+    def __init__(self, model_path):
         """
         Initialize the security client.
         """
-        self.person_model = YOLO(person_model)
-        self.safe_model = YOLO(safe_model)
+        dete_onnx_path = os.path.join(model_path, 'onnx/ppyoloe_plus_sod_0823.onnx')
+        cls_onnx_path = os.path.join(model_path, 'onnx/cls-4.onnx')
+        dete_cfg_path = os.path.join(model_path, 'onnx/infer_cfg.yml')
+        with open(dete_cfg_path) as f:
+            yml_conf = yaml.safe_load(f)
+        self.arch = yml_conf['arch']
+        self.preprocess_infos = yml_conf['Preprocess']
+        self.draw_threshold = yml_conf.get("draw_threshold", 0.4)
 
-    def person_detect(self, frame):
-        results = self.person_model.predict(source=frame)
-
-        cls = results[0].boxes.cls.cpu().numpy()
-        cls_names = [self.person_model.names[int(c)] for c in cls]
-        bboxes = results[0].boxes.xyxy.cpu().numpy()
-        confs = results[0].boxes.conf.cpu().numpy()
-
-        ret_bboxes = []
-        for i, name in enumerate(cls_names):
-            if name == 'person':
-                x1, y1, x2, y2 = map(int, bboxes[i])
-                conf = confs[i]
-                ret_bboxes.append((x1, y1, x2, y2, conf))
-        return ret_bboxes
+        self.deteModel = onnxruntime.InferenceSession(dete_onnx_path, providers=["CPUExecutionProvider"])
+        self.clsModel = onnxruntime.InferenceSession(cls_onnx_path, providers=["CPUExecutionProvider"])
 
     def _detect_safety_gear(self, frame):
         """
@@ -47,49 +39,39 @@ class CrewStaffSecurityRecognizer:
         Returns:
             Tuple of (has_helmet, has_reflective_vest)
         """
-        bboxes = self.person_detect(frame)
-        print(f"detection bbox: {bboxes}")
+        bbox = getDeteBBox_v2(self.preprocess_infos, self.draw_threshold, self.deteModel, frame)
+        print(f"detection bbox: {bbox}")
         
-        img_height, img_width = frame.shape[:2]
-        scale = 1.2
-        helmet_num, fgy_num = 0, 0
-        for box in bboxes:
-            x_min, y_min, x_max, y_max, box_conf = box
-            x_min_new, y_min_new, x_max_new, y_max_new = scale_person_bbox(box, img_width, img_height, scale)
-
-            person_crop = frame[int(y_min_new):int(y_max_new), int(x_min_new):int(x_max_new)]
-            safe_results = self.safe_model.predict(source=person_crop)
-
-            helmet_flag, fgy_flag = False, False
-            for safe_result in safe_results:
-                safe_cls = safe_result.boxes.cls.cpu().numpy()
-                safe_conf = safe_result.boxes.conf.cpu().numpy()
-                safe_boxes = safe_result.boxes.xyxy.cpu().numpy()
-                safe_cls_names = [self.safe_model.names[int(c)] for c in cls]
-                for idx, safe_name in enumerate(safe_cls_names):
-                    if safe_name in ['aqm', 'fgmj']:
-                        x_min_safe, y_min_safe, x_max_safe, y_max_safe = safe_boxes[idx]
-                        conf = safe_boxes[idx]
-                        print(f"Confidence: {conf}")
-                        if conf < 0.5:
-                            continue
-                        x_min_orig = int(x_min_new + x_min_safe)
-                        y_min_orig = int(y_min_new + y_min_safe)
-                        x_max_orig = int(x_min_new + x_max_safe)
-                        y_max_orig = int(y_min_new + y_max_safe)
-
-                        if safe_name == 'aqm' and helmet_flag == False:
-                            helmet_flag = True
-                            helmet_num += 1
-                            cv2.rectangle(frame, (x_min_orig, y_min_orig), (x_max_orig, y_max_orig), (0,0,255), 2)
-                            # cv2.putText(frame, safe_name, (x_min_orig, y_min_orig-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36,12,255), 2)
-                        elif safe_name == 'fgmj' and fgy_flag == False:
-                            fgy_flag = True
-                            fgy_num += 1
-                            cv2.rectangle(frame, (x_min_orig, y_min_orig), (x_max_orig, y_max_orig), (0,255,0), 2)
-                            # cv2.putText(frame, safe_name, (x_min_orig, y_min_orig-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36,255,12), 2)
-        no_helmet_num = len(bboxes) - helmet_num
-        no_fgy_num = len(bboxes) - fgy_num
+        out_helmet, out_fgy = True, True          # Default to True
+        no_helmet_num, no_fgy_num = 0, 0
+        if len(bbox) != 0:
+            batch_crop_img = getCropImg(frame, bbox)
+            result_list = getClsResult(batch_crop_img, self.clsModel)
+            
+            # print(result_list, bbox) # 反光衣【0,1】 安全帽【0,1,2看不到】 长短袖【0长 1短 2未知】 人 【0,1】
+            # print(len(bbox), len(result_list))
+            for bb, r in zip(bbox, result_list):
+                cls, conf, x1, y1, x2, y2 = bb
+                # print(x1, y1, x2, y2)
+                cv2.rectangle(frame, (x1-5, y1-5), (x2+5, y2+5), (0, 0, 255), 2)
+                pred_fgy = r[0]
+                pred_helmet = r[1]
+                pred_person = r[3]
+                # print(pred_fgy,pred_helmet,pred_person)
+                out_fgy = False if pred_fgy[0] >= 0.8 else True
+                out_helmet = False if pred_helmet[0] >= 0.8 else True
+                out_person = True if pred_person[1] >= 0.8 else False
+                # print(f"out_helmet: {out_helmet}, out_fgy: {out_fgy}, out_person: {out_person}")
+                if out_helmet == False and out_person == True:
+                    # frame = cv2.putText(frame, 'no helmet', (x1, y1-10), textFont, 1, (0,0,255), 1)
+                    # cv2.rectangle(frame, (x1-5, y1-5), (x2+5, y2+5), (0, 0, 255), 5)
+                    print('未戴安全帽')
+                    no_helmet_num += 1
+                if out_fgy == False and out_person == True:
+                    # cv2.rectangle(frame, (x1-5, y1-5), (x2+5, y2+5), (0, 0, 255), 5)
+                    # frame = cv2.putText(frame, 'no reflect_vest', (x1, (y1+y2)//2), textFont, 1, (0,255,0), 1)
+                    print('未穿反光衣')
+                    no_fgy_num += 1
         
         return no_helmet_num, no_fgy_num, frame
     
@@ -118,28 +100,30 @@ class CrewStaffSecurityRecognizer:
                     cap.release()
                 return 
             
-            image_save_folder = Path("detected_safety_violations")
-            if not image_save_folder.exists():
-                # image_save_folder.mkdir(parents=True, exist_ok=True)
-                os.makedirs(image_save_folder, exist_ok=True)
-
             while True:
                 ret, frame = cap.read()
                 if not ret:
                     print(f"Failed to read crewStaffSecRecog frame")
                     time.sleep(1)
                     continue
+
+                image_save_folder = Path("detected_safety_violations")
+                if not image_save_folder.exists():
+                    # image_save_folder.mkdir(parents=True, exist_ok=True)
+                    os.makedirs(image_save_folder, exist_ok=True)
+                
+                if 'c13' in rtsp_url:
+                    place = "工地大门口"
+                    time.sleep(1)
+                else:
+                    place = "下井通道"
+                    time.sleep(2)
+
+                no_helmet_num, no_fgy_num, ret_frame = self._detect_safety_gear(frame)
                 
                 timestamp = datetime.now().isoformat()
                 dt = datetime.now().strftime('%Y%m%d_%H-%M-%S')
                 t = time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime())
-                no_helmet_num, no_fgy_num, ret_frame = self._detect_safety_gear(frame)
-                if 'c13' in rtsp_url:
-                    place = "工地大门口"
-                    # time.sleep(1)
-                elif 'c16' in rtsp_url:
-                    place = "下井通道"
-                    # time.sleep(2)
 
                 filename = f"{channel_name}_frame_{timestamp}.jpg"
                 temp_image_path = f"{image_save_folder}/{filename}"
